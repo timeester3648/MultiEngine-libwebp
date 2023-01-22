@@ -15,6 +15,10 @@ project "libwebp"
 		"./sharpyuv/**.c",
 	}
 
+	defines {
+		"WEBP_USE_THREAD"
+	}
+
 	includedirs {
 		"./",
 		"%{IncludeDir.libwebp}",
