@@ -321,6 +321,7 @@ ENC_OBJS = \
 EXTRAS_OBJS = \
     $(DIROBJ)\extras\extras.obj \
     $(DIROBJ)\extras\quality_estimate.obj \
+    $(DIROBJ)\extras\sharpyuv_risk_table.obj \
 
 IMAGEIO_UTIL_OBJS = \
     $(DIROBJ)\imageio\imageio_util.obj \
