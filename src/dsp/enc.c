@@ -109,10 +109,6 @@ static WEBP_TSAN_IGNORE_FUNCTION void InitTables(void) {
 #define STORE(x, y, v) \
   dst[(x) + (y) * BPS] = clip_8b(ref[(x) + (y) * BPS] + ((v) >> 3))
 
-static const int kC1 = 20091 + (1 << 16);
-static const int kC2 = 35468;
-#define MUL(a, b) (((a) * (b)) >> 16)
-
 static WEBP_INLINE void ITransformOne(const uint8_t* ref, const int16_t* in,
                                       uint8_t* dst) {
   int C[4 * 4], *tmp;
@@ -121,8 +117,10 @@ static WEBP_INLINE void ITransformOne(const uint8_t* ref, const int16_t* in,
   for (i = 0; i < 4; ++i) {    // vertical pass
     const int a = in[0] + in[8];
     const int b = in[0] - in[8];
-    const int c = MUL(in[4], kC2) - MUL(in[12], kC1);
-    const int d = MUL(in[4], kC1) + MUL(in[12], kC2);
+    const int c =
+        WEBP_TRANSFORM_AC3_MUL2(in[4]) - WEBP_TRANSFORM_AC3_MUL1(in[12]);
+    const int d =
+        WEBP_TRANSFORM_AC3_MUL1(in[4]) + WEBP_TRANSFORM_AC3_MUL2(in[12]);
     tmp[0] = a + d;
     tmp[1] = b + c;
     tmp[2] = b - c;
@@ -134,10 +132,12 @@ static WEBP_INLINE void ITransformOne(const uint8_t* ref, const int16_t* in,
   tmp = C;
   for (i = 0; i < 4; ++i) {    // horizontal pass
     const int dc = tmp[0] + 4;
-    const int a =  dc +  tmp[8];
-    const int b =  dc -  tmp[8];
-    const int c = MUL(tmp[4], kC2) - MUL(tmp[12], kC1);
-    const int d = MUL(tmp[4], kC1) + MUL(tmp[12], kC2);
+    const int a = dc + tmp[8];
+    const int b = dc - tmp[8];
+    const int c =
+        WEBP_TRANSFORM_AC3_MUL2(tmp[4]) - WEBP_TRANSFORM_AC3_MUL1(tmp[12]);
+    const int d =
+        WEBP_TRANSFORM_AC3_MUL1(tmp[4]) + WEBP_TRANSFORM_AC3_MUL2(tmp[12]);
     STORE(0, i, a + d);
     STORE(1, i, b + c);
     STORE(2, i, b - c);
@@ -222,7 +222,6 @@ static void FTransformWHT_C(const int16_t* in, int16_t* out) {
 }
 #endif  // !WEBP_NEON_OMIT_C_CODE
 
-#undef MUL
 #undef STORE
 
 //------------------------------------------------------------------------------
@@ -333,6 +332,7 @@ static void IntraChromaPreds_C(uint8_t* dst, const uint8_t* left,
 //------------------------------------------------------------------------------
 // luma 16x16 prediction (paragraph 12.3)
 
+#if !WEBP_NEON_OMIT_C_CODE || !WEBP_AARCH64
 static void Intra16Preds_C(uint8_t* dst,
                            const uint8_t* left, const uint8_t* top) {
   DCMode(I16DC16 + dst, left, top, 16, 16, 5);
@@ -340,9 +340,12 @@ static void Intra16Preds_C(uint8_t* dst,
   HorizontalPred(I16HE16 + dst, left, 16);
   TrueMotion(I16TM16 + dst, left, top, 16);
 }
+#endif  // !WEBP_NEON_OMIT_C_CODE || !WEBP_AARCH64
 
 //------------------------------------------------------------------------------
 // luma 4x4 prediction
+
+#if !WEBP_NEON_OMIT_C_CODE || !WEBP_AARCH64
 
 #define DST(x, y) dst[(x) + (y) * BPS]
 #define AVG3(a, b, c) ((uint8_t)(((a) + 2 * (b) + (c) + 2) >> 2))
@@ -530,6 +533,8 @@ static void Intra4Preds_C(uint8_t* dst, const uint8_t* top) {
   HU4(I4HU4 + dst, top);
 }
 
+#endif  // !WEBP_NEON_OMIT_C_CODE || !WEBP_AARCH64
+
 //------------------------------------------------------------------------------
 // Metric
 
@@ -645,6 +650,7 @@ static int Disto16x16_C(const uint8_t* const a, const uint8_t* const b,
 // Quantization
 //
 
+#if !WEBP_NEON_OMIT_C_CODE || WEBP_NEON_WORK_AROUND_GCC
 static const uint8_t kZigzag[16] = {
   0, 1, 4, 8, 5, 2, 3, 6, 9, 12, 13, 10, 7, 11, 14, 15
 };
@@ -676,7 +682,6 @@ static int QuantizeBlock_C(int16_t in[16], int16_t out[16],
   return (last >= 0);
 }
 
-#if !WEBP_NEON_OMIT_C_CODE || WEBP_NEON_WORK_AROUND_GCC
 static int Quantize2Blocks_C(int16_t in[32], int16_t out[32],
                              const VP8Matrix* const mtx) {
   int nz;
@@ -761,14 +766,17 @@ WEBP_DSP_INIT_FUNC(VP8EncDspInit) {
 #if !WEBP_NEON_OMIT_C_CODE || WEBP_NEON_WORK_AROUND_GCC
   VP8EncQuantizeBlock = QuantizeBlock_C;
   VP8EncQuantize2Blocks = Quantize2Blocks_C;
+  VP8EncQuantizeBlockWHT = QuantizeBlock_C;
+#endif
+
+#if !WEBP_NEON_OMIT_C_CODE || !WEBP_AARCH64
+  VP8EncPredLuma4 = Intra4Preds_C;
+  VP8EncPredLuma16 = Intra16Preds_C;
 #endif
 
   VP8FTransform2 = FTransform2_C;
-  VP8EncPredLuma4 = Intra4Preds_C;
-  VP8EncPredLuma16 = Intra16Preds_C;
   VP8EncPredChroma8 = IntraChromaPreds_C;
   VP8Mean16x4 = Mean16x4_C;
-  VP8EncQuantizeBlockWHT = QuantizeBlock_C;
   VP8Copy4x4 = Copy4x4_C;
   VP8Copy16x8 = Copy16x8_C;
 

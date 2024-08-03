@@ -1,5 +1,5 @@
-AC_INIT([libwebp], [1.3.2],
-        [https://bugs.chromium.org/p/webp],,
+AC_INIT([libwebp], [1.4.0],
+        [https://issues.webmproject.org],,
         [https://developers.google.com/speed/webp])
 AC_CANONICAL_HOST
 AC_PREREQ([2.60])
@@ -106,6 +106,7 @@ TEST_AND_ADD_CFLAGS([AM_CFLAGS], [-Wall])
 TEST_AND_ADD_CFLAGS([AM_CFLAGS], [-Wconstant-conversion])
 TEST_AND_ADD_CFLAGS([AM_CFLAGS], [-Wdeclaration-after-statement])
 TEST_AND_ADD_CFLAGS([AM_CFLAGS], [-Wextra])
+TEST_AND_ADD_CFLAGS([AM_CFLAGS], [-Wextra-semi-stmt])
 TEST_AND_ADD_CFLAGS([AM_CFLAGS], [-Wfloat-conversion])
 TEST_AND_ADD_CFLAGS([AM_CFLAGS], [-Wformat -Wformat-nonliteral])
 TEST_AND_ADD_CFLAGS([AM_CFLAGS], [-Wformat -Wformat-security])
@@ -115,6 +116,7 @@ TEST_AND_ADD_CFLAGS([AM_CFLAGS], [-Wold-style-definition])
 TEST_AND_ADD_CFLAGS([AM_CFLAGS], [-Wparentheses-equality])
 TEST_AND_ADD_CFLAGS([AM_CFLAGS], [-Wshadow])
 TEST_AND_ADD_CFLAGS([AM_CFLAGS], [-Wshorten-64-to-32])
+TEST_AND_ADD_CFLAGS([AM_CFLAGS], [-Wstrict-prototypes])
 TEST_AND_ADD_CFLAGS([AM_CFLAGS], [-Wundef])
 TEST_AND_ADD_CFLAGS([AM_CFLAGS], [-Wunreachable-code-aggressive])
 TEST_AND_ADD_CFLAGS([AM_CFLAGS], [-Wunreachable-code])
@@ -761,7 +763,8 @@ AC_CONFIG_FILES([Makefile src/Makefile man/Makefile \
                  src/libwebp.pc src/libwebpdecoder.pc \
                  src/demux/libwebpdemux.pc src/mux/libwebpmux.pc])
 
-
+dnl fix exports from MinGW builds
+AC_CONFIG_COMMANDS_POST([$SED -i 's/-DDLL_EXPORT/-DWEBP_DLL/' config.status])
 AC_OUTPUT
 
 AC_MSG_NOTICE([

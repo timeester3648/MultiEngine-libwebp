@@ -23,12 +23,12 @@
 #include <stdlib.h>
 #include <string.h>
 
-static float FastSLog2Slow_MIPS32(uint32_t v) {
+static uint64_t FastSLog2Slow_MIPS32(uint32_t v) {
   assert(v >= LOG_LOOKUP_IDX_MAX);
   if (v < APPROX_LOG_WITH_CORRECTION_MAX) {
-    uint32_t log_cnt, y, correction;
+    uint32_t log_cnt, y;
+    uint64_t correction;
     const int c24 = 24;
-    const float v_f = (float)v;
     uint32_t temp;
 
     // Xf = 256 = 2^8
@@ -49,22 +49,23 @@ static float FastSLog2Slow_MIPS32(uint32_t v) {
     // log2(Xf) = log2(floor(Xf)) + log2(1 + (v % y) / v)
     // The correction factor: log(1 + d) ~ d; for very small d values, so
     // log2(1 + (v % y) / v) ~ LOG_2_RECIPROCAL * (v % y)/v
-    // LOG_2_RECIPROCAL ~ 23/16
 
     // (v % y) = (v % 2^log_cnt) = v & (2^log_cnt - 1)
-    correction = (23 * (v & (y - 1))) >> 4;
-    return v_f * (kLog2Table[temp] + log_cnt) + correction;
+    correction = LOG_2_RECIPROCAL_FIXED * (v & (y - 1));
+    return (uint64_t)v * (kLog2Table[temp] +
+                          ((uint64_t)log_cnt << LOG_2_PRECISION_BITS)) +
+           correction;
   } else {
-    return (float)(LOG_2_RECIPROCAL * v * log((double)v));
+    return (uint64_t)(LOG_2_RECIPROCAL_FIXED_DOUBLE * v * log((double)v) + .5);
   }
 }
 
-static float FastLog2Slow_MIPS32(uint32_t v) {
+static uint32_t FastLog2Slow_MIPS32(uint32_t v) {
   assert(v >= LOG_LOOKUP_IDX_MAX);
   if (v < APPROX_LOG_WITH_CORRECTION_MAX) {
     uint32_t log_cnt, y;
     const int c24 = 24;
-    double log_2;
+    uint32_t log_2;
     uint32_t temp;
 
     __asm__ volatile(
@@ -78,17 +79,16 @@ static float FastLog2Slow_MIPS32(uint32_t v) {
       : [c24]"r"(c24), [v]"r"(v)
     );
 
-    log_2 = kLog2Table[temp] + log_cnt;
+    log_2 = kLog2Table[temp] + (log_cnt << LOG_2_PRECISION_BITS);
     if (v >= APPROX_LOG_MAX) {
       // Since the division is still expensive, add this correction factor only
       // for large values of 'v'.
-
-      const uint32_t correction = (23 * (v & (y - 1))) >> 4;
-      log_2 += (double)correction / v;
+      const uint64_t correction = LOG_2_RECIPROCAL_FIXED * (v & (y - 1));
+      log_2 += (uint32_t)DivRound(correction, v);
     }
-    return (float)log_2;
+    return log_2;
   } else {
-    return (float)(LOG_2_RECIPROCAL * log((double)v));
+    return (uint32_t)(LOG_2_RECIPROCAL_FIXED_DOUBLE * log((double)v) + .5);
   }
 }
 
@@ -227,7 +227,7 @@ static WEBP_INLINE void GetEntropyUnrefinedHelper(
     bit_entropy->sum += (*val_prev) * streak;
     bit_entropy->nonzeros += streak;
     bit_entropy->nonzero_code = *i_prev;
-    bit_entropy->entropy -= VP8LFastSLog2(*val_prev) * streak;
+    bit_entropy->entropy += VP8LFastSLog2(*val_prev) * streak;
     if (bit_entropy->max_val < *val_prev) {
       bit_entropy->max_val = *val_prev;
     }
@@ -259,7 +259,7 @@ static void GetEntropyUnrefined_MIPS32(const uint32_t X[], int length,
   }
   GetEntropyUnrefinedHelper(0, i, &x_prev, &i_prev, bit_entropy, stats);
 
-  bit_entropy->entropy += VP8LFastSLog2(bit_entropy->sum);
+  bit_entropy->entropy = VP8LFastSLog2(bit_entropy->sum) - bit_entropy->entropy;
 }
 
 static void GetCombinedEntropyUnrefined_MIPS32(const uint32_t X[],
@@ -282,7 +282,7 @@ static void GetCombinedEntropyUnrefined_MIPS32(const uint32_t X[],
   }
   GetEntropyUnrefinedHelper(0, i, &xy_prev, &i_prev, entropy, stats);
 
-  entropy->entropy += VP8LFastSLog2(entropy->sum);
+  entropy->entropy = VP8LFastSLog2(entropy->sum) - entropy->entropy;
 }
 
 #define ASM_START                                       \
