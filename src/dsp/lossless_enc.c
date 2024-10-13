@@ -336,6 +336,21 @@ static uint64_t CombinedShannonEntropy_C(const uint32_t X[256],
   return retval;
 }
 
+static uint64_t ShannonEntropy_C(const uint32_t* X, int n) {
+  int i;
+  uint64_t retval = 0;
+  uint32_t sumX = 0;
+  for (i = 0; i < n; ++i) {
+    const int x = X[i];
+    if (x != 0) {
+      sumX += x;
+      retval += VP8LFastSLog2(x);
+    }
+  }
+  retval = VP8LFastSLog2(sumX) - retval;
+  return retval;
+}
+
 void VP8LBitEntropyInit(VP8LBitEntropy* const entropy) {
   entropy->entropy = 0;
   entropy->sum = 0;
@@ -344,8 +359,8 @@ void VP8LBitEntropyInit(VP8LBitEntropy* const entropy) {
   entropy->nonzero_code = VP8L_NON_TRIVIAL_SYM;
 }
 
-void VP8LBitsEntropyUnrefined(const uint32_t* const array, int n,
-                              VP8LBitEntropy* const entropy) {
+void VP8LBitsEntropyUnrefined(const uint32_t* WEBP_RESTRICT const array, int n,
+                              VP8LBitEntropy* WEBP_RESTRICT const entropy) {
   int i;
 
   VP8LBitEntropyInit(entropy);
@@ -365,8 +380,10 @@ void VP8LBitsEntropyUnrefined(const uint32_t* const array, int n,
 }
 
 static WEBP_INLINE void GetEntropyUnrefinedHelper(
-    uint32_t val, int i, uint32_t* const val_prev, int* const i_prev,
-    VP8LBitEntropy* const bit_entropy, VP8LStreaks* const stats) {
+    uint32_t val, int i, uint32_t* WEBP_RESTRICT const val_prev,
+    int* WEBP_RESTRICT const i_prev,
+    VP8LBitEntropy* WEBP_RESTRICT const bit_entropy,
+    VP8LStreaks* WEBP_RESTRICT const stats) {
   const int streak = i - *i_prev;
 
   // Gather info for the bit entropy.
@@ -388,9 +405,10 @@ static WEBP_INLINE void GetEntropyUnrefinedHelper(
   *i_prev = i;
 }
 
-static void GetEntropyUnrefined_C(const uint32_t X[], int length,
-                                  VP8LBitEntropy* const bit_entropy,
-                                  VP8LStreaks* const stats) {
+static void GetEntropyUnrefined_C(
+    const uint32_t X[], int length,
+    VP8LBitEntropy* WEBP_RESTRICT const bit_entropy,
+    VP8LStreaks* WEBP_RESTRICT const stats) {
   int i;
   int i_prev = 0;
   uint32_t x_prev = X[0];
@@ -409,11 +427,10 @@ static void GetEntropyUnrefined_C(const uint32_t X[], int length,
   bit_entropy->entropy = VP8LFastSLog2(bit_entropy->sum) - bit_entropy->entropy;
 }
 
-static void GetCombinedEntropyUnrefined_C(const uint32_t X[],
-                                          const uint32_t Y[],
-                                          int length,
-                                          VP8LBitEntropy* const bit_entropy,
-                                          VP8LStreaks* const stats) {
+static void GetCombinedEntropyUnrefined_C(
+    const uint32_t X[], const uint32_t Y[], int length,
+    VP8LBitEntropy* WEBP_RESTRICT const bit_entropy,
+    VP8LStreaks* WEBP_RESTRICT const stats) {
   int i = 1;
   int i_prev = 0;
   uint32_t xy_prev = X[0] + Y[0];
@@ -453,8 +470,8 @@ static WEBP_INLINE int8_t U32ToS8(uint32_t v) {
   return (int8_t)(v & 0xff);
 }
 
-void VP8LTransformColor_C(const VP8LMultipliers* const m, uint32_t* data,
-                          int num_pixels) {
+void VP8LTransformColor_C(const VP8LMultipliers* WEBP_RESTRICT const m,
+                          uint32_t* WEBP_RESTRICT data, int num_pixels) {
   int i;
   for (i = 0; i < num_pixels; ++i) {
     const uint32_t argb = data[i];
@@ -490,7 +507,8 @@ static WEBP_INLINE uint8_t TransformColorBlue(uint8_t green_to_blue,
   return (new_blue & 0xff);
 }
 
-void VP8LCollectColorRedTransforms_C(const uint32_t* argb, int stride,
+void VP8LCollectColorRedTransforms_C(const uint32_t* WEBP_RESTRICT argb,
+                                     int stride,
                                      int tile_width, int tile_height,
                                      int green_to_red, uint32_t histo[]) {
   while (tile_height-- > 0) {
@@ -502,7 +520,8 @@ void VP8LCollectColorRedTransforms_C(const uint32_t* argb, int stride,
   }
 }
 
-void VP8LCollectColorBlueTransforms_C(const uint32_t* argb, int stride,
+void VP8LCollectColorBlueTransforms_C(const uint32_t* WEBP_RESTRICT argb,
+                                      int stride,
                                       int tile_width, int tile_height,
                                       int green_to_blue, int red_to_blue,
                                       uint32_t histo[]) {
@@ -529,8 +548,8 @@ static int VectorMismatch_C(const uint32_t* const array1,
 }
 
 // Bundles multiple (1, 2, 4 or 8) pixels into a single pixel.
-void VP8LBundleColorMap_C(const uint8_t* const row, int width, int xbits,
-                          uint32_t* dst) {
+void VP8LBundleColorMap_C(const uint8_t* WEBP_RESTRICT const row,
+                          int width, int xbits, uint32_t* WEBP_RESTRICT dst) {
   int x;
   if (xbits > 0) {
     const int bit_depth = 1 << (3 - xbits);
@@ -561,7 +580,8 @@ static uint32_t ExtraCost_C(const uint32_t* population, int length) {
   return cost;
 }
 
-static uint32_t ExtraCostCombined_C(const uint32_t* X, const uint32_t* Y,
+static uint32_t ExtraCostCombined_C(const uint32_t* WEBP_RESTRICT X,
+                                    const uint32_t* WEBP_RESTRICT Y,
                                     int length) {
   int i;
   uint32_t cost = X[4] + Y[4] + X[5] + Y[5];
@@ -576,13 +596,15 @@ static uint32_t ExtraCostCombined_C(const uint32_t* X, const uint32_t* Y,
 
 //------------------------------------------------------------------------------
 
-static void AddVector_C(const uint32_t* a, const uint32_t* b, uint32_t* out,
-                        int size) {
+static void AddVector_C(const uint32_t* WEBP_RESTRICT a,
+                        const uint32_t* WEBP_RESTRICT b,
+                        uint32_t* WEBP_RESTRICT out, int size) {
   int i;
   for (i = 0; i < size; ++i) out[i] = a[i] + b[i];
 }
 
-static void AddVectorEq_C(const uint32_t* a, uint32_t* out, int size) {
+static void AddVectorEq_C(const uint32_t* WEBP_RESTRICT a,
+                          uint32_t* WEBP_RESTRICT out, int size) {
   int i;
   for (i = 0; i < size; ++i) out[i] += a[i];
 }
@@ -611,8 +633,9 @@ static void AddVectorEq_C(const uint32_t* a, uint32_t* out, int size) {
   }                                                                            \
 } while (0)
 
-void VP8LHistogramAdd(const VP8LHistogram* const a,
-                      const VP8LHistogram* const b, VP8LHistogram* const out) {
+void VP8LHistogramAdd(const VP8LHistogram* WEBP_RESTRICT const a,
+                      const VP8LHistogram* WEBP_RESTRICT const b,
+                      VP8LHistogram* WEBP_RESTRICT const out) {
   int i;
   const int literal_size = VP8LHistogramNumCodes(a->palette_code_bits_);
   assert(a->palette_code_bits_ == b->palette_code_bits_);
@@ -642,14 +665,14 @@ void VP8LHistogramAdd(const VP8LHistogram* const a,
 // Image transforms.
 
 static void PredictorSub0_C(const uint32_t* in, const uint32_t* upper,
-                            int num_pixels, uint32_t* out) {
+                            int num_pixels, uint32_t* WEBP_RESTRICT out) {
   int i;
   for (i = 0; i < num_pixels; ++i) out[i] = VP8LSubPixels(in[i], ARGB_BLACK);
   (void)upper;
 }
 
 static void PredictorSub1_C(const uint32_t* in, const uint32_t* upper,
-                            int num_pixels, uint32_t* out) {
+                            int num_pixels, uint32_t* WEBP_RESTRICT out) {
   int i;
   for (i = 0; i < num_pixels; ++i) out[i] = VP8LSubPixels(in[i], in[i - 1]);
   (void)upper;
@@ -660,7 +683,8 @@ static void PredictorSub1_C(const uint32_t* in, const uint32_t* upper,
 #define GENERATE_PREDICTOR_SUB(PREDICTOR_I)                                \
 static void PredictorSub##PREDICTOR_I##_C(const uint32_t* in,              \
                                           const uint32_t* upper,           \
-                                          int num_pixels, uint32_t* out) { \
+                                          int num_pixels,                  \
+                                          uint32_t* WEBP_RESTRICT out) {   \
   int x;                                                                   \
   assert(upper != NULL);                                                   \
   for (x = 0; x < num_pixels; ++x) {                                       \
@@ -698,6 +722,7 @@ VP8LFastSLog2SlowFunc VP8LFastSLog2Slow;
 VP8LCostFunc VP8LExtraCost;
 VP8LCostCombinedFunc VP8LExtraCostCombined;
 VP8LCombinedShannonEntropyFunc VP8LCombinedShannonEntropy;
+VP8LShannonEntropyFunc VP8LShannonEntropy;
 
 VP8LGetEntropyUnrefinedFunc VP8LGetEntropyUnrefined;
 VP8LGetCombinedEntropyUnrefinedFunc VP8LGetCombinedEntropyUnrefined;
@@ -737,6 +762,7 @@ WEBP_DSP_INIT_FUNC(VP8LEncDspInit) {
   VP8LExtraCost = ExtraCost_C;
   VP8LExtraCostCombined = ExtraCostCombined_C;
   VP8LCombinedShannonEntropy = CombinedShannonEntropy_C;
+  VP8LShannonEntropy = ShannonEntropy_C;
 
   VP8LGetEntropyUnrefined = GetEntropyUnrefined_C;
   VP8LGetCombinedEntropyUnrefined = GetCombinedEntropyUnrefined_C;
@@ -826,6 +852,7 @@ WEBP_DSP_INIT_FUNC(VP8LEncDspInit) {
   assert(VP8LExtraCost != NULL);
   assert(VP8LExtraCostCombined != NULL);
   assert(VP8LCombinedShannonEntropy != NULL);
+  assert(VP8LShannonEntropy != NULL);
   assert(VP8LGetEntropyUnrefined != NULL);
   assert(VP8LGetCombinedEntropyUnrefined != NULL);
   assert(VP8LAddVector != NULL);
